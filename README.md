@@ -68,6 +68,7 @@ The compiled binary accepts these commands:
 | `--apply` | `create`, `sync` | Enable real ClouDNS create and delete requests; without it the operation is dry-run |
 | `--watch` | `create`, `sync` | Repeat synchronization using `settings.sync_interval` |
 | `--delete-missing` | `create`, `sync` | Delete remote zones missing locally; only typed Slave zones are eligible |
+| `--no-delete-missing` | `create`, `sync` | Disable remote deletion for this run, overriding `settings.delete_missing` |
 | `--backend NAME` | all | Deprecated alias for `--provider` |
 
 Useful combinations:
@@ -89,7 +90,7 @@ Useful combinations:
 /usr/local/bin/cloudns-sync sync --apply --watch -c /etc/cloudns-sync/config.yml
 ```
 
-Do not use `--apply` with `settings.dry_run: true`; the program rejects that combination. Deletion is disabled by default and requires both `--apply` and `--delete-missing` (or `settings.delete_missing: true`). A deletion dry-run may call the read-only list API to show candidates, but never calls delete. Zones with unknown type, Master type, or matching `exclude_zones` are never deleted. `--watch` requires `--config` so the interval and `run_on_start` settings are available. Press `Ctrl+C` to stop the process.
+Do not use `--apply` with `settings.dry_run: true`; the program rejects that combination. `settings.delete_missing` is the global switch for deleting remote Slave zones that are missing locally. It is disabled by default and can be overridden for one run with `--delete-missing` or `--no-delete-missing`; the two flags cannot be combined. Actual deletion still requires `--apply`. A deletion dry-run may call the read-only list API to show candidates, but never calls delete. Zones with unknown type, Master type, or matching `exclude_zones` are never deleted. `--watch` requires `--config` so the interval and `run_on_start` settings are available. Press `Ctrl+C` to stop the process.
 
 ### Main config options
 
@@ -115,7 +116,7 @@ settings:
 - `settings.master_ip`: one or more valid IP addresses. The current create operation uses the first entry.
 - `settings.run_on_start`: in watch mode, run one synchronization immediately before waiting for the interval.
 - `settings.dry_run`: blocks real writes when `true`.
-- `settings.delete_missing`: enables deletion of remote Slave zones that are no longer present locally; keep `false` unless explicitly required.
+- `settings.delete_missing`: global switch for deletion of remote Slave zones that are no longer present locally; keep `false` unless explicitly required. Use `--no-delete-missing` to disable deletion for one run even when this is `true`.
 - `settings.sync_interval`: Go duration such as `30s`, `1m`, or `1h`; minimum is `1s`.
 - `settings.dns_provider`: provider name selected from the provider files.
 - `settings.exclude_zones`: normalized names or glob patterns that must not be created remotely. For example, `*.arpa` excludes all reverse-DNS zones.
@@ -158,7 +159,7 @@ To perform the actual registrations:
 /usr/local/bin/cloudns-sync create --apply -c /etc/cloudns-sync/config.yml
 ```
 
-Before creating, the command calls ClouDNS `dns/list-zones.json` and creates only zones missing from ClouDNS. Existing zones are reported as skipped, not errors. The create request uses `dns/register.json` with `zone-type=slave` and the first `settings.master_ip` value. Use `settings.exclude_zones` for local/system zones that should not be created remotely. The command continues after an individual API failure and prints a final summary. Deletion is disabled unless `--delete-missing` or `settings.delete_missing: true` is used. Test first with one dedicated zone and a restricted ClouDNS API user. Credentials are sent only over HTTPS and are never printed.
+Before creating, the command calls ClouDNS `dns/list-zones.json` and creates only zones missing from ClouDNS. Existing zones are reported as skipped, not errors. The create request uses `dns/register.json` with `zone-type=slave` and the first `settings.master_ip` value. Use `settings.exclude_zones` for local/system zones that should not be created remotely. The command continues after an individual API failure and prints a final summary. Deletion is controlled globally by `settings.delete_missing`; `--delete-missing` enables it and `--no-delete-missing` disables it for one run. Test first with one dedicated zone and a restricted ClouDNS API user. Credentials are sent only over HTTPS and are never printed.
 
 For continuous synchronization:
 

@@ -9,6 +9,8 @@ settings:
 
   run_on_start: true
   dry_run: true
+  # Global safety switch for deleting remote Slave zones missing locally.
+  # It can be overridden for one run with --delete-missing or --no-delete-missing.
   delete_missing: false
   sync_interval: 1m
   # Provider files are loaded from providers/ and identified by provider:.

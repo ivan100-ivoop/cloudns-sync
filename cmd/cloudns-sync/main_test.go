@@ -22,3 +22,25 @@ func TestExcludedRemoteZonesAreIgnored(t *testing.T) {
 		t.Fatal("non-excluded remote zone should remain")
 	}
 }
+
+func TestResolveDeleteMissing(t *testing.T) {
+	tests := []struct {
+		name                          string
+		configured, enabled, disabled bool
+		want                          bool
+	}{
+		{name: "disabled by default"},
+		{name: "enabled globally", configured: true, want: true},
+		{name: "enabled by command line", enabled: true, want: true},
+		{name: "disabled by command line", configured: true, disabled: true},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got := resolveDeleteMissing(test.configured, test.enabled, test.disabled)
+			if got != test.want {
+				t.Fatalf("resolveDeleteMissing(%t, %t, %t) = %t, want %t", test.configured, test.enabled, test.disabled, got, test.want)
+			}
+		})
+	}
+}

@@ -25,7 +25,7 @@ func main() {
 	} else if len(args) > 0 && strings.HasPrefix(args[0], "-") {
 		// Discovery is the default command; --apply upgrades direct flag usage to create.
 		for _, arg := range args {
-			if arg == "--apply" || arg == "--delete-missing" || arg == "--watch" {
+			if arg == "--apply" || arg == "--delete-missing" || arg == "--no-delete-missing" || arg == "--watch" {
 				command = "create"
 				break
 			}
@@ -78,9 +78,13 @@ func create(args []string) error {
 	powerDNSCommand := flags.String("powerdns-command", "", "PowerDNS administration command")
 	watch := flags.Bool("watch", false, "keep synchronizing at settings.sync_interval")
 	deleteMissing := flags.Bool("delete-missing", false, "delete missing remote slave zones")
+	noDeleteMissing := flags.Bool("no-delete-missing", false, "do not delete missing remote slave zones, overriding the configuration")
 
 	if err := flags.Parse(args); err != nil {
 		return err
+	}
+	if *deleteMissing && *noDeleteMissing {
+		return fmt.Errorf("--delete-missing and --no-delete-missing cannot be used together")
 	}
 	if *configPath == "" {
 		*configPath = *configPathShort
@@ -120,7 +124,7 @@ func create(args []string) error {
 			}
 			excluded = append(excluded, pattern)
 		}
-		deleteEnabled := *deleteMissing || cfg.Settings.DeleteMissing
+		deleteEnabled := resolveDeleteMissing(cfg.Settings.DeleteMissing, *deleteMissing, *noDeleteMissing)
 		existing := map[string]cloudns.Zone{}
 		if *apply || deleteEnabled {
 			existing, err = client.ListZones(context.Background())
@@ -235,6 +239,19 @@ func filterExcludedZones(zones map[string]cloudns.Zone, patterns []string) {
 	}
 }
 
+// resolveDeleteMissing applies command-line overrides to the global setting.
+// The negative override is useful for temporarily running a configuration that
+// normally deletes stale remote zones without allowing any deletion.
+func resolveDeleteMissing(configured, enabled, disabled bool) bool {
+	if disabled {
+		return false
+	}
+	if enabled {
+		return true
+	}
+	return configured
+}
+
 func loadZones(args []string) (config.Config, []string, string, string, error) {
 	flags := flag.NewFlagSet("discover", flag.ContinueOnError)
 	configPath := flags.String("config", "", "path to YAML configuration")
@@ -298,7 +315,7 @@ func loadZones(args []string) (config.Config, []string, string, string, error) {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: cloudns-sync [discover|create] [-c path|--config path] [--provider named|powerdns] [--apply] [--watch] [--delete-missing]")
+	fmt.Fprintln(os.Stderr, "usage: cloudns-sync [discover|create] [-c path|--config path] [--provider named|powerdns] [--apply] [--watch] [--delete-missing|--no-delete-missing]")
 }
 
 func resolveRelative(base, path string) string {
