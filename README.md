@@ -248,6 +248,108 @@ Use this layout for a system-wide Linux installation:
 
 Copy `config.example.yml` to `/etc/cloudns-sync/config.yml` and copy the required definitions from `configs/providers/` to `/etc/cloudns-sync/providers/`. Put the ClouDNS access values under `cloudns.auth_id` and `cloudns.auth_password`, then select a provider with `settings.dns_provider`. For `named`, `config_file` points to the BIND/named configuration. For `powerdns`, `command` and `args` define the local administration command. Replace the documentation-only master IP with one or more real IPv4 or IPv6 addresses. Keep `config.yml` private and use restrictive filesystem permissions because it contains credentials. Credentials are redacted from errors and logs. `sync_interval` uses Go duration syntax and must be at least `1s`.
 
+## Run as a Linux service
+
+The repository includes `deploy/systemd/cloudns-sync.service`. It runs the application as the dedicated `cloudns-sync` user, stores application error logs under `/var/lib/cloudns-sync/logs/`, restarts after failures, and starts after the network is online.
+
+Build the binary and install the application, configuration, and service unit:
+
+```bash
+go build -o ./dist/cloudns-sync-linux-amd64 ./cmd/cloudns-sync
+
+sudo groupadd --system cloudns-sync
+sudo useradd --system --gid cloudns-sync --home-dir /var/lib/cloudns-sync --shell /usr/sbin/nologin cloudns-sync
+sudo install -Dm755 ./dist/cloudns-sync-linux-amd64 /usr/local/bin/cloudns-sync
+sudo install -d -o root -g cloudns-sync -m 0750 /etc/cloudns-sync/providers
+sudo install -o root -g cloudns-sync -m 0640 config.example.yml /etc/cloudns-sync/config.yml
+sudo install -o root -g cloudns-sync -m 0640 configs/providers/*.yml /etc/cloudns-sync/providers/
+sudo install -Dm644 deploy/systemd/cloudns-sync.service /etc/systemd/system/cloudns-sync.service
+```
+
+Edit `/etc/cloudns-sync/config.yml` and the selected provider file. The service account must be able to read the BIND configuration and all included files, or execute the configured PowerDNS command. Grant only the required group membership or file permissions. Confirm access with a discovery run:
+
+```bash
+sudo -u cloudns-sync /usr/local/bin/cloudns-sync discover --config /etc/cloudns-sync/config.yml
+```
+
+Test `create` without `--apply` first. The supplied unit uses `--apply`, so set `settings.dry_run: false` only after verifying the discovered zones, master IP, exclusion patterns, and ClouDNS credentials. Then enable the service:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now cloudns-sync.service
+sudo systemctl status cloudns-sync.service
+sudo journalctl -u cloudns-sync.service -f
+```
+
+After changing the configuration, restart with `sudo systemctl restart cloudns-sync.service`. To disable and stop it, run `sudo systemctl disable --now cloudns-sync.service`.
+
+## Run as a Windows service
+
+The executable is a console application, so do not register it directly with `sc.exe`; Windows would expect the Service Control API and report a startup failure. Use the [WinSW service wrapper](https://github.com/winsw/winsw) with the supplied `deploy/windows/cloudns-sync-service.xml` file.
+
+Use this layout:
+
+```text
+C:\Program Files\cloudns-sync\
+|-- cloudns-sync.exe
+|-- cloudns-sync-service.exe
+`-- cloudns-sync-service.xml
+
+C:\ProgramData\cloudns-sync\
+|-- config.yml
+|-- providers\
+|   |-- named.yml
+|   `-- powerdns.yml
+`-- logs\
+```
+
+Build the Windows executable, create the directories, and copy the project files from an elevated PowerShell terminal:
+
+```powershell
+go build -o .\dist\cloudns-sync-windows-amd64.exe .\cmd\cloudns-sync
+
+$appDir = Join-Path $env:ProgramFiles "cloudns-sync"
+$dataDir = Join-Path $env:ProgramData "cloudns-sync"
+New-Item -ItemType Directory -Force $appDir, "$dataDir\providers", "$dataDir\logs" | Out-Null
+Copy-Item .\dist\cloudns-sync-windows-amd64.exe "$appDir\cloudns-sync.exe"
+Copy-Item .\config.example.yml "$dataDir\config.yml"
+Copy-Item .\configs\providers\*.yml "$dataDir\providers\"
+Copy-Item .\deploy\windows\cloudns-sync-service.xml "$appDir\cloudns-sync-service.xml"
+```
+
+Download the executable from the latest stable [WinSW release](https://github.com/winsw/winsw/releases), rename it to `cloudns-sync-service.exe`, and place it beside the XML file in `C:\Program Files\cloudns-sync\`. WinSW uses the matching base names to associate the executable and XML configuration.
+
+The supplied wrapper runs as the built-in `NetworkService` account. Give that account read access to the configuration and modify access only to the log directory:
+
+```powershell
+icacls $dataDir /grant '*S-1-5-20:(OI)(CI)RX'
+icacls "$dataDir\logs" /grant '*S-1-5-20:(OI)(CI)M'
+```
+
+Edit `C:\ProgramData\cloudns-sync\config.yml` and the selected provider file. Use absolute Windows paths for BIND files, for example `config_file: 'C:\DNS\named.conf'`, and grant `NetworkService` read access to them. The account also needs permission to run and use any configured PowerDNS administration command.
+
+Verify discovery and dry-run behavior interactively before enabling real changes. The wrapper XML uses `--apply`, so set `settings.dry_run: false` only after the configuration is verified:
+
+```powershell
+& "$appDir\cloudns-sync.exe" discover --config "$dataDir\config.yml"
+& "$appDir\cloudns-sync.exe" create --config "$dataDir\config.yml"
+```
+
+Install and start the service from the same elevated PowerShell terminal:
+
+```powershell
+& "$appDir\cloudns-sync-service.exe" install
+& "$appDir\cloudns-sync-service.exe" start
+& "$appDir\cloudns-sync-service.exe" status
+```
+
+WinSW writes wrapper, stdout, and stderr logs to `C:\ProgramData\cloudns-sync\logs\`. The service also appears as `cloudns-sync` in `services.msc`. To remove it:
+
+```powershell
+& "$appDir\cloudns-sync-service.exe" stop
+& "$appDir\cloudns-sync-service.exe" uninstall
+```
+
 ## Verification
 
 ```powershell

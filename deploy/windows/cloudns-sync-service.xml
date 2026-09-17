@@ -1,0 +1,19 @@
+<service>
+  <id>cloudnssync</id>
+  <name>cloudns-sync</name>
+  <description>Synchronizes local DNS zones to ClouDNS.</description>
+  <executable>%BASE%\cloudns-sync.exe</executable>
+  <arguments>sync --apply --watch --config "C:\ProgramData\cloudns-sync\config.yml"</arguments>
+  <workingdirectory>C:\ProgramData\cloudns-sync</workingdirectory>
+  <serviceaccount>
+    <username>NT AUTHORITY\NetworkService</username>
+  </serviceaccount>
+  <startmode>Automatic</startmode>
+  <delayedAutoStart>true</delayedAutoStart>
+  <hidewindow>true</hidewindow>
+  <stoptimeout>30 sec</stoptimeout>
+  <onfailure action="restart" delay="10 sec" />
+  <resetfailure>1 hour</resetfailure>
+  <logpath>C:\ProgramData\cloudns-sync\logs</logpath>
+  <log mode="roll" />
+</service>

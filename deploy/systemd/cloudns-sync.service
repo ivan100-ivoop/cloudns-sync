@@ -1,0 +1,26 @@
+[Unit]
+Description=Synchronize local DNS zones to ClouDNS
+Documentation=https://github.com/ivan100-ivoop/cloudns-sync
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=cloudns-sync
+Group=cloudns-sync
+WorkingDirectory=/var/lib/cloudns-sync
+StateDirectory=cloudns-sync
+StateDirectoryMode=0750
+UMask=0027
+ExecStart=/usr/local/bin/cloudns-sync sync --apply --watch --config /etc/cloudns-sync/config.yml
+Restart=on-failure
+RestartSec=10s
+TimeoutStopSec=30s
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/cloudns-sync
+
+[Install]
+WantedBy=multi-user.target
