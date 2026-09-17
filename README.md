@@ -1,6 +1,6 @@
-# CloudNS Secondary Zone Scan
+# cloudns-sync
 
-Phase 1 discovers authoritative master zones locally through a backend-neutral `ZoneSource`. It does not contact the ClouDNS API and does not create, update, or delete zones.
+`cloudns-sync` discovers locally hosted master DNS zones and synchronizes them to ClouDNS as Secondary/Slave zones. Local zones can be read from BIND/named configuration files or from PowerDNS through its administration command. Discovery and dry-run modes do not modify ClouDNS.
 
 ## Run discovery
 
@@ -14,14 +14,14 @@ go run ./cmd/cloudns-sync discover -c ./config.yml
 go run ./cmd/cloudns-sync -c ./config.yml
 ```
 
-After building a binary, the equivalent Linux commands are:
+After installing the binary, the equivalent Linux commands are:
 
 ```bash
-./cloudns-sync-linux-amd64 discover --config /etc/nz/config.yml
-./cloudns-sync-linux-amd64 --config /etc/nz/config.yml
+/usr/local/bin/cloudns-sync discover --config /etc/cloudns-sync/config.yml
+/usr/local/bin/cloudns-sync --config /etc/cloudns-sync/config.yml
 ```
 
-The configuration can be installed outside the project, for example `/etc/nz/config.yml`. All YAML files in `/etc/nz/providers/` are loaded on each discovery run. The provider name comes from the `provider:` field inside each file, and the selected name is `settings.dns_provider`. The relative `config_file` path is resolved from `/etc/nz`. The older `configs/providers/` layout is accepted as a compatibility fallback.
+The recommended Linux configuration path is `/etc/cloudns-sync/config.yml`. Provider definitions belong in `/etc/cloudns-sync/providers/`. The provider name comes from the `provider:` field inside each file, and `settings.dns_provider` selects which provider to use. Relative provider paths such as `config_file` are resolved from `/etc/cloudns-sync/`. The older `configs/providers/` subdirectory is accepted as a compatibility fallback.
 
 For parser-only testing, the configuration is optional:
 
@@ -44,16 +44,16 @@ The compiled binary accepts these commands:
 | Command | Behavior | Contacts ClouDNS | Changes zones |
 | --- | --- | --- | --- |
 | `discover` | Reads and prints local master zones | No | No |
-| `create` | Compares local zones and creates missing slave zones | With `--apply` | With `--apply` only |
-| `sync` | Same operation as `create`, intended for repeated runs | With `--apply` | With `--apply` only |
+| `create` | Compares local zones and creates missing slave zones | When remote comparison is required | With `--apply` only |
+| `sync` | Same operation as `create`, intended for repeated runs | When remote comparison is required | With `--apply` only |
 
 `discover` is the default when flags are provided without a command. The presence of `--apply` changes that default to `create`, so both forms are valid:
 
 ```bash
-./cloudns-sync-linux-amd64 -c /etc/nz/config.yml
-./cloudns-sync-linux-amd64 discover -c /etc/nz/config.yml
-./cloudns-sync-linux-amd64 -c /etc/nz/config.yml --apply
-./cloudns-sync-linux-amd64 create --apply -c /etc/nz/config.yml
+/usr/local/bin/cloudns-sync -c /etc/cloudns-sync/config.yml
+/usr/local/bin/cloudns-sync discover -c /etc/cloudns-sync/config.yml
+/usr/local/bin/cloudns-sync -c /etc/cloudns-sync/config.yml --apply
+/usr/local/bin/cloudns-sync create --apply -c /etc/cloudns-sync/config.yml
 ```
 
 ### CLI options
@@ -65,7 +65,7 @@ The compiled binary accepts these commands:
 | `--provider NAME` | all | Override `settings.dns_provider` for this run |
 | `--named FILE` | all | Override the `named` provider `config_file` |
 | `--powerdns-command COMMAND` | all | Override the PowerDNS administration command |
-| `--apply` | `create`, `sync` | Enable real ClouDNS create requests; without it the operation is dry-run |
+| `--apply` | `create`, `sync` | Enable real ClouDNS create and delete requests; without it the operation is dry-run |
 | `--watch` | `create`, `sync` | Repeat synchronization using `settings.sync_interval` |
 | `--delete-missing` | `create`, `sync` | Delete remote zones missing locally; only typed Slave zones are eligible |
 | `--backend NAME` | all | Deprecated alias for `--provider` |
@@ -74,19 +74,19 @@ Useful combinations:
 
 ```bash
 # Inspect local zones only. No ClouDNS credentials or API request are needed.
-./cloudns-sync-linux-amd64 discover -c /etc/nz/config.yml
+/usr/local/bin/cloudns-sync discover -c /etc/cloudns-sync/config.yml
 
 # Test another provider without changing the main YAML.
-./cloudns-sync-linux-amd64 discover --provider named -c /etc/nz/config.yml
+/usr/local/bin/cloudns-sync discover --provider named -c /etc/cloudns-sync/config.yml
 
 # Preview which missing zones would be created. No API write is performed.
-./cloudns-sync-linux-amd64 create -c /etc/nz/config.yml
+/usr/local/bin/cloudns-sync create -c /etc/cloudns-sync/config.yml
 
 # Create missing zones once. Requires settings.dry_run: false.
-./cloudns-sync-linux-amd64 create --apply -c /etc/nz/config.yml
+/usr/local/bin/cloudns-sync create --apply -c /etc/cloudns-sync/config.yml
 
 # Keep synchronizing. Requires settings.dry_run: false for real writes.
-./cloudns-sync-linux-amd64 sync --apply --watch -c /etc/nz/config.yml
+/usr/local/bin/cloudns-sync sync --apply --watch -c /etc/cloudns-sync/config.yml
 ```
 
 Do not use `--apply` with `settings.dry_run: true`; the program rejects that combination. Deletion is disabled by default and requires both `--apply` and `--delete-missing` (or `settings.delete_missing: true`). A deletion dry-run may call the read-only list API to show candidates, but never calls delete. Zones with unknown type, Master type, or matching `exclude_zones` are never deleted. `--watch` requires `--config` so the interval and `run_on_start` settings are available. Press `Ctrl+C` to stop the process.
@@ -95,22 +95,22 @@ Do not use `--apply` with `settings.dry_run: true`; the program rejects that com
 
 ```yaml
 cloudns:
-	auth_id: "..."
-	auth_password: "..."
+  auth_id: "..."
+  auth_password: "..."
 
 settings:
-	master_ip:
-		- "203.0.113.10"
-	run_on_start: true
-	dry_run: true
-	delete_missing: false
-	sync_interval: 1m
-	dns_provider: named
-	exclude_zones:
-		- "localhost"
+  master_ip:
+    - "203.0.113.10"
+  run_on_start: true
+  dry_run: true
+  delete_missing: false
+  sync_interval: 1m
+  dns_provider: named
+  exclude_zones:
+    - "localhost"
 ```
 
-- `cloudns.auth_id`, `cloudns.auth_password`: credentials used only by `create`/`sync --apply`.
+- `cloudns.auth_id`, `cloudns.auth_password`: credentials used by `create` and `sync` when they query or modify remote zones.
 - `cloudns.api_url` is not required. If it is absent, the binary uses the standard ClouDNS register endpoint and derives the list endpoint automatically.
 - `settings.master_ip`: one or more valid IP addresses. The current create operation uses the first entry.
 - `settings.run_on_start`: in watch mode, run one synchronization immediately before waiting for the interval.
@@ -122,7 +122,7 @@ settings:
 
 ### Provider file options
 
-Provider files are YAML files under `/etc/nz/providers/` or, for compatibility, `/etc/nz/configs/providers/`. All YAML files are loaded; the `provider:` field inside each file is the authoritative name.
+Provider files are YAML files under `/etc/cloudns-sync/providers/` or, for compatibility, `/etc/cloudns-sync/configs/providers/`. All YAML files are loaded; the `provider:` field inside each file is the authoritative name.
 
 Named/BIND:
 
@@ -139,7 +139,7 @@ provider: powerdns
 type: command
 command: "pdnsutil"
 args:
-	- "list-all-zones"
+  - "list-all-zones"
 ```
 
 `named` reads BIND zone declarations and includes. `powerdns` runs the configured local command and expects one zone name per output line. The provider directory must contain a file whose internal `provider:` matches `settings.dns_provider`.
@@ -149,21 +149,21 @@ args:
 The `create` command discovers local master zones and prepares ClouDNS Secondary/Slave zone registrations. It is a dry run unless `--apply` is explicitly supplied:
 
 ```bash
-./cloudns-sync-linux-amd64 create -c ./dev-config/config.yml
+/usr/local/bin/cloudns-sync create -c /etc/cloudns-sync/config.yml
 ```
 
 To perform the actual registrations:
 
 ```bash
-./cloudns-sync-linux-amd64 create --apply -c ./dev-config/config.yml
+/usr/local/bin/cloudns-sync create --apply -c /etc/cloudns-sync/config.yml
 ```
 
-Before creating, the command calls ClouDNS `dns/list-zones.json` and creates only zones missing from ClouDNS. Existing zones are reported as skipped, not errors. The create request uses `dns/register.json` with `zone-type=slave` and the first `settings.master_ip` value. Use `settings.exclude_zones` for local/system zones that should not be created remotely. The command continues after an individual API failure and prints a final summary. This phase only creates zones; it never deletes or updates zones. Test first with one dedicated zone and a restricted ClouDNS API user. Credentials are sent only over HTTPS and are never printed.
+Before creating, the command calls ClouDNS `dns/list-zones.json` and creates only zones missing from ClouDNS. Existing zones are reported as skipped, not errors. The create request uses `dns/register.json` with `zone-type=slave` and the first `settings.master_ip` value. Use `settings.exclude_zones` for local/system zones that should not be created remotely. The command continues after an individual API failure and prints a final summary. Deletion is disabled unless `--delete-missing` or `settings.delete_missing: true` is used. Test first with one dedicated zone and a restricted ClouDNS API user. Credentials are sent only over HTTPS and are never printed.
 
 For continuous synchronization:
 
 ```bash
-./cloudns-sync-linux-amd64 sync --apply -c ./dev-config/config.yml --watch
+/usr/local/bin/cloudns-sync sync --apply -c /etc/cloudns-sync/config.yml --watch
 ```
 
 The current binary accepts `create --watch` as well. With `settings.run_on_start: true`, synchronization runs immediately and then repeats using `settings.sync_interval`. Stop it with `Ctrl+C`.
@@ -233,9 +233,20 @@ GOOS=windows GOARCH=arm64 CGO_ENABLED=0 go build -o ./dist/cloudns-sync-windows-
 
 `CGO_ENABLED=0` is recommended for portable cross-compiled binaries. The application can run on Windows, but the selected data source must also be available there: `named` needs a readable local BIND configuration file, while `powerdns` needs the configured administration command such as `pdnsutil`. A Linux `/etc/named.conf` is not automatically available on Windows; copy it to a Windows path and point the provider file to that path.
 
-## Configuration
+## Linux configuration layout
 
-Copy `config.example.yml` to `config.yml` and put the CloudNS access values directly under `cloudns.auth_id` and `cloudns.auth_password`. Select a provider with `settings.dns_provider`. Provider files live under `providers/`; their `provider:` field is authoritative. For `named`, `config_file` points to the BIND/named configuration. For `powerdns`, `command` and `args` define the local administration command. Replace the documentation-only master IP with one or more real valid IPv4/IPv6 addresses. Never commit `config.yml`; it is ignored by Git and should have restrictive filesystem permissions. Credentials are redacted from errors and logs. `sync_interval` uses Go duration syntax and must be at least `1s`.
+Use this layout for a system-wide Linux installation:
+
+```text
+/usr/local/bin/cloudns-sync
+/etc/cloudns-sync/
+├── config.yml
+└── providers/
+    ├── named.yml
+    └── powerdns.yml
+```
+
+Copy `config.example.yml` to `/etc/cloudns-sync/config.yml` and copy the required definitions from `configs/providers/` to `/etc/cloudns-sync/providers/`. Put the ClouDNS access values under `cloudns.auth_id` and `cloudns.auth_password`, then select a provider with `settings.dns_provider`. For `named`, `config_file` points to the BIND/named configuration. For `powerdns`, `command` and `args` define the local administration command. Replace the documentation-only master IP with one or more real IPv4 or IPv6 addresses. Keep `config.yml` private and use restrictive filesystem permissions because it contains credentials. Credentials are redacted from errors and logs. `sync_interval` uses Go duration syntax and must be at least `1s`.
 
 ## Verification
 
@@ -252,17 +263,13 @@ go vet ./...
 - `internal/dns/bind`: quote-aware comment stripping and master-zone discovery.
 - `internal/dns/powerdns`: PowerDNS zone discovery through a configured local command.
 - `internal/logger`: centralized sensitive-value redaction and date-based error files.
-- `cmd/cloudns-sync`: the local `discover` CLI only.
+- `cmd/cloudns-sync`: the CLI for discovery, one-time creation, and continuous synchronization.
 
 The BIND parser reads zone declarations and their `type`; it does not read zone files or DNS records. It tolerates ordinary top-level BIND statements, whitespace, comments, quoted zone names, duplicate declarations, and multiline blocks. The PowerDNS source reads only the zone list returned by its command and does not inspect records.
 
 ## Plesk and other panels
 
 Plesk is treated as an orchestration layer, not as a separate DNS data format. Configure the provider that Plesk actually uses: `named` with the managed `named.conf`, or `powerdns` with the local PowerDNS command. This avoids coupling discovery to Plesk's internal database schema and also supports non-cPanel BIND installations. New provider types can be added under `internal/dns`, registered in the provider registry, and given their own file under `configs/providers/` without changing the main YAML schema.
-
-## Next compatibility input
-
-Provide a redacted copy of the real cPanel `/etc/named.conf` and all files it includes, preserving the same relative layout or absolute paths. The parser supports ordinary BIND views, block comments, nested includes, and glob patterns. Also provide the intended valid master IP list and a sample production logging configuration. Do not include CloudNS passwords, tokens, or authorization headers.
 
 ## License
 
