@@ -1,0 +1,26 @@
+cloudns:
+  # Put the values directly in config.yml. Keep config.yml private.
+  auth_id: ""
+  auth_password: ""
+
+settings:
+  master_ip:
+    - "203.0.113.10"
+
+  run_on_start: true
+  dry_run: true
+  delete_missing: false
+  sync_interval: 1m
+  # Provider files are loaded from providers/ and identified by provider:.
+  dns_provider: named
+  # Optional exact names for local/system zones that should not be created remotely.
+  exclude_zones:
+    - "localhost"
+    - "localdomain"
+    - "*.arpa"
+    - "ns1.voltixapp.space"
+
+logging:
+  directory: "./logs"
+  level: info
+  error_file: "error-{date}.log"

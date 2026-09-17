@@ -1,0 +1,7 @@
+provider: powerdns
+type: command
+
+# The provider executes this local command and parses one zone name per line.
+command: "pdnsutil"
+args:
+  - "list-all-zones"

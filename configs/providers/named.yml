@@ -1,0 +1,5 @@
+provider: named
+type: bind
+
+# The provider reads zone declarations and their type from this file.
+config_file: "./testdata/named.conf"
