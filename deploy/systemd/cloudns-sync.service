@@ -8,6 +8,7 @@ After=network-online.target
 Type=simple
 User=cloudns-sync
 Group=cloudns-sync
+SupplementaryGroups=named
 WorkingDirectory=/var/lib/cloudns-sync
 StateDirectory=cloudns-sync
 StateDirectoryMode=0750
