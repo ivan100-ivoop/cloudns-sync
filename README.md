@@ -263,3 +263,7 @@ Plesk is treated as an orchestration layer, not as a separate DNS data format. C
 ## Next compatibility input
 
 Provide a redacted copy of the real cPanel `/etc/named.conf` and all files it includes, preserving the same relative layout or absolute paths. The parser supports ordinary BIND views, block comments, nested includes, and glob patterns. Also provide the intended valid master IP list and a sample production logging configuration. Do not include CloudNS passwords, tokens, or authorization headers.
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
