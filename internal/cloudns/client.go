@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-const defaultAPIURL = "https://api.cloudns.net/dns/register.json"
+const defaultAPIURL = "https://api.cloudns.net"
 
 type Client struct {
 	APIURL       string
@@ -39,12 +39,7 @@ type Zone struct {
 }
 
 func (client Client) ListZones(ctx context.Context) (map[string]Zone, error) {
-	endpoint := strings.TrimRight(client.APIURL, "/")
-	if endpoint == "" || endpoint == defaultAPIURL {
-		endpoint = "https://api.cloudns.net/dns/list-zones.json"
-	} else {
-		endpoint = strings.TrimSuffix(endpoint, "/register.json") + "/list-zones.json"
-	}
+	endpoint := client.endpoint("list-zones.json")
 	result := make(map[string]Zone)
 	for page := 1; ; page++ {
 		form := url.Values{
@@ -85,10 +80,6 @@ func (client Client) ListZones(ctx context.Context) (map[string]Zone, error) {
 }
 
 func (client Client) RegisterSlaveZone(ctx context.Context, zone string, masterIP string) error {
-	endpoint := client.APIURL
-	if endpoint == "" {
-		endpoint = defaultAPIURL
-	}
 	form := url.Values{
 		"auth-id":       {client.AuthID},
 		"auth-password": {client.AuthPassword},
@@ -96,26 +87,9 @@ func (client Client) RegisterSlaveZone(ctx context.Context, zone string, masterI
 		"zone-type":     {"slave"},
 		"master-ip":     {masterIP},
 	}
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(form.Encode()))
+	body, err := client.postForm(ctx, client.endpoint("register.json"), form)
 	if err != nil {
-		return fmt.Errorf("create ClouDNS request: %w", err)
-	}
-	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	httpClient := client.HTTPClient
-	if httpClient == nil {
-		httpClient = &http.Client{Timeout: 30 * time.Second}
-	}
-	response, err := httpClient.Do(request)
-	if err != nil {
-		return fmt.Errorf("send ClouDNS request: %w", err)
-	}
-	defer response.Body.Close()
-	body, err := io.ReadAll(response.Body)
-	if err != nil {
-		return fmt.Errorf("read ClouDNS response: %w", err)
-	}
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return fmt.Errorf("ClouDNS returned HTTP %d", response.StatusCode)
+		return err
 	}
 	var result RegisterResponse
 	if err := json.Unmarshal(body, &result); err != nil {
@@ -128,18 +102,12 @@ func (client Client) RegisterSlaveZone(ctx context.Context, zone string, masterI
 }
 
 func (client Client) DeleteZone(ctx context.Context, zone string) error {
-	endpoint := strings.TrimRight(client.APIURL, "/")
-	if endpoint == "" || endpoint == defaultAPIURL {
-		endpoint = "https://api.cloudns.net/dns/delete.json"
-	} else {
-		endpoint = strings.TrimSuffix(endpoint, "/register.json") + "/delete.json"
-	}
 	form := url.Values{
 		"auth-id":       {client.AuthID},
 		"auth-password": {client.AuthPassword},
 		"domain-name":   {zone},
 	}
-	body, err := client.postForm(ctx, endpoint, form)
+	body, err := client.postForm(ctx, client.endpoint("delete.json"), form)
 	if err != nil {
 		return err
 	}
@@ -151,6 +119,27 @@ func (client Client) DeleteZone(ctx context.Context, zone string) error {
 		return fmt.Errorf("ClouDNS rejected deletion of zone %q: %s", zone, result.StatusDescription)
 	}
 	return nil
+}
+
+// endpoint resolves an API method against APIURL. APIURL is normally a base
+// URL, but full method URLs remain supported for backward compatibility.
+func (client Client) endpoint(method string) string {
+	base := strings.TrimRight(strings.TrimSpace(client.APIURL), "/")
+	if base == "" {
+		base = defaultAPIURL
+	}
+
+	for _, knownMethod := range []string{"register.json", "list-zones.json", "delete.json"} {
+		suffix := "/" + knownMethod
+		if strings.HasSuffix(base, suffix) {
+			return strings.TrimSuffix(base, knownMethod) + method
+		}
+	}
+
+	if strings.HasSuffix(base, "/dns") {
+		return base + "/" + method
+	}
+	return base + "/dns/" + method
 }
 
 func (client Client) postForm(ctx context.Context, endpoint string, form url.Values) ([]byte, error) {

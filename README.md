@@ -111,7 +111,7 @@ settings:
 ```
 
 - `cloudns.auth_id`, `cloudns.auth_password`: credentials used by `create` and `sync` when they query or modify remote zones.
-- `cloudns.api_url` is not required. If it is absent, the binary uses the standard ClouDNS register endpoint and derives the list endpoint automatically.
+- `cloudns.api_url` is an optional API base URL. It defaults to `https://api.cloudns.net`; the client appends the required `/dns/*.json` endpoint for each operation.
 - `settings.master_ip`: one or more valid IP addresses. The current create operation uses the first entry.
 - `settings.run_on_start`: in watch mode, run one synchronization immediately before waiting for the interval.
 - `settings.dry_run`: blocks real writes when `true`.
