@@ -9,7 +9,7 @@
 - Go documentation: https://go.dev/doc/
 - ClouDNS homepage: https://www.cloudns.net/
 - ClouDNS API documentation: https://www.cloudns.net/wiki/
-- Project repository: https://github.com/ivan100-ivoop/cloudns-socket
+- Project repository: https://github.com/ivan100-ivoop/cloudns-sync
 
 ## Run discovery
 
