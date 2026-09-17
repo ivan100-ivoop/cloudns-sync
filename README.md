@@ -260,8 +260,6 @@ go build -o ./dist/cloudns-sync-linux-amd64 ./cmd/cloudns-sync
 sudo groupadd --system cloudns-sync
 sudo useradd --system --gid cloudns-sync --home-dir /var/lib/cloudns-sync --shell /usr/sbin/nologin cloudns-sync
 sudo usermod -aG named cloudns-sync
-sudo systemctl daemon-reload
-sudo systemctl restart cloudns-sync.service
 
 sudo install -Dm755 ./dist/cloudns-sync-linux-amd64 /usr/local/bin/cloudns-sync
 sudo install -d -o root -g cloudns-sync -m 0750 /etc/cloudns-sync/providers
