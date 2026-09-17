@@ -2,6 +2,15 @@
 
 `cloudns-sync` discovers locally hosted master DNS zones and synchronizes them to ClouDNS as Secondary/Slave zones. Local zones can be read from BIND/named configuration files or from PowerDNS through its administration command. Discovery and dry-run modes do not modify ClouDNS.
 
+## Useful links
+
+- Go homepage: https://go.dev/
+- Go downloads: https://go.dev/dl/
+- Go documentation: https://go.dev/doc/
+- ClouDNS homepage: https://www.cloudns.net/
+- ClouDNS API documentation: https://www.cloudns.net/wiki/
+- Project repository: https://github.com/ivan100-ivoop/cloudns-socket
+
 ## Run discovery
 
 Use a real configuration file and a copied `named.conf`:
